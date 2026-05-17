@@ -211,13 +211,62 @@ def send_email(subject: str, html_body: str) -> None:
     print(f"[ok] sent: {subject}")
 
 
-# ─── Yahoo Finance news (no API key needed) ─────────────────────────────────
-def fetch_yahoo_news(limit: int = 5) -> list[dict]:
-    """Top market news from Yahoo Finance via yfinance.
-    Pulls headlines associated with SPY (broad market). No API key required.
+# ─── Impact keyword categories (for filtering market-moving news) ───────────
+IMPACT_CATEGORIES = [
+    ("🏛️ Fed/Rates", [
+        "fed ", " fed,", "fomc", "powell", "interest rate", "rate cut", "rate hike",
+        "rate decision", "rate-cut", "rate-hike", "dovish", "hawkish", "easing cycle",
+        "tightening", "basis point", "bps cut", "bps hike", "fed chair", "federal reserve",
+    ]),
+    ("💰 Inflation", [
+        "cpi", "ppi", "inflation", "deflation", "pce ", "core prices", "consumer price",
+        "producer price",
+    ]),
+    ("💼 Jobs", [
+        "payrolls", "nfp", "jobs report", "unemployment", "labor market", "non-farm",
+        "nonfarm", "hiring slowdown", "jobless",
+    ]),
+    ("📊 Economy", [
+        "gdp", "recession", "stimulus", "treasury yield", "yield curve", "soft landing",
+        "hard landing", "economic growth",
+    ]),
+    ("🌍 Geopolitics", [
+        " war ", "war,", "war.", "ukraine", "russia", "israel", "iran", "middle east",
+        "tariff", "sanction", "trade war", "china tension", "taiwan", "north korea",
+    ]),
+    ("⚠️ Market shock", [
+        "market crash", "selloff", "sell-off", "plunge", "correction", "bear market",
+        "circuit breaker", "rout", "panic selling",
+    ]),
+    ("🏛️ Government", [
+        "shutdown", "debt ceiling", "election", "trump", "biden", "white house",
+        "treasury secretary",
+    ]),
+    ("💼 Earnings", [
+        "earnings beat", "earnings miss", "guidance cut", "guidance raise", "missed estimates",
+        "beat estimates", "profit warning",
+    ]),
+]
 
-    Returns normalized list of {headline, source, url, datetime} sorted newest first.
-    Handles both older and newer yfinance news object formats.
+
+def _categorize(text_lower: str) -> str | None:
+    """Returns the first category whose keyword matches the text, or None."""
+    for cat, kws in IMPACT_CATEGORIES:
+        for kw in kws:
+            if kw in text_lower:
+                return cat
+    return None
+
+
+# ─── Yahoo Finance news (no API key needed) ─────────────────────────────────
+def fetch_yahoo_news(limit: int = 5, impact_filter: bool = True) -> list[dict]:
+    """Market news from Yahoo Finance via yfinance.
+
+    With impact_filter=True (default): scans up to 25 latest SPY headlines and
+    returns only those matching market-moving keywords (Fed, CPI, war, tariff,
+    earnings beats/misses, etc.), each tagged with a category icon.
+
+    Falls back to the latest 3 headlines (untagged) if no impact news is found.
     """
     try:
         items = yf.Ticker("SPY").news or []
@@ -228,7 +277,6 @@ def fetch_yahoo_news(limit: int = 5) -> list[dict]:
     normalized: list[dict] = []
     for it in items:
         try:
-            # Newer yfinance (v0.2.40+) wraps data in 'content'
             if "content" in it and isinstance(it["content"], dict):
                 c = it["content"]
                 pubdate = c.get("pubDate") or ""
@@ -239,27 +287,49 @@ def fetch_yahoo_news(limit: int = 5) -> list[dict]:
                     except Exception:
                         pass
                 headline = c.get("title", "")
+                summary = c.get("summary", "") or c.get("description", "")
                 source = (c.get("provider") or {}).get("displayName") or "Yahoo Finance"
                 url = ((c.get("canonicalUrl") or {}).get("url")
                        or (c.get("clickThroughUrl") or {}).get("url") or "")
             else:
-                # Older format (flat fields)
                 headline = it.get("title", "")
+                summary = it.get("summary", "")
                 source = it.get("publisher", "Yahoo Finance")
                 url = it.get("link", "")
                 ts = int(it.get("providerPublishTime", 0) or 0)
             if headline:
                 normalized.append({
                     "headline": headline,
+                    "summary": summary,
                     "source": source,
                     "url": url,
                     "datetime": ts,
+                    "category": None,
                 })
         except Exception:
             continue
 
     normalized.sort(key=lambda x: x["datetime"], reverse=True)
-    return normalized[:limit]
+
+    if not impact_filter:
+        return normalized[:limit]
+
+    # Filter for impact keywords
+    impact = []
+    for n in normalized[:25]:  # scan up to 25 most recent
+        text = (n["headline"] + " " + (n.get("summary") or "")).lower()
+        cat = _categorize(text)
+        if cat:
+            n["category"] = cat
+            impact.append(n)
+
+    if impact:
+        return impact[:limit]
+
+    # Fallback: no impact news today — return 3 latest with a flag
+    for n in normalized[:3]:
+        n["category"] = "📰 General"
+    return normalized[:3]
 
 
 def watchlist_earnings_this_week(tickers: list[str]) -> list[tuple[str, int]]:
