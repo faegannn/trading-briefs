@@ -11,7 +11,15 @@ from __future__ import annotations
 import sys
 import yfinance as yf
 
-from lib import send_email, today_sgt_long, today_sgt_str
+from datetime import datetime, timezone
+from lib import (
+    send_email,
+    today_sgt_long,
+    today_sgt_str,
+    fetch_yahoo_news,
+    watchlist_earnings_this_week,
+    load_watchlist,
+)
 
 
 # ─── Data fetch ─────────────────────────────────────────────────────────────
@@ -124,7 +132,57 @@ def overall_verdict(trend: str, fear: str) -> dict:
 
 
 # ─── HTML rendering ─────────────────────────────────────────────────────────
-def render_email(trend_light, trend, fear_light, fear, verdict, rates_ctx) -> str:
+def render_catalysts(news: list[dict], earnings: list[tuple[str, int]]) -> str:
+    """Optional section — hidden if both news and earnings are empty."""
+    if not news and not earnings:
+        return ""
+
+    parts = [
+        '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:14px">',
+        '<div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px">📰 This week\'s catalysts</div>',
+    ]
+
+    if earnings:
+        weekday = lambda d: (datetime.now(timezone.utc).date() + (datetime.now(timezone.utc).date() - datetime.now(timezone.utc).date())).strftime("%a") if d is None else None
+        e_html = " · ".join(
+            f'<strong>{tk}</strong> in {d}d' if d > 0 else f'<strong>{tk}</strong> today'
+            for tk, d in earnings
+        )
+        parts.append(
+            '<div style="font-size:13px;color:#1f2937;margin-bottom:10px">'
+            f'<span style="color:#92400e;font-weight:600">⚠️ Earnings this week:</span> {e_html} '
+            '<span style="color:#6b7280">— per your golden rule, exit any open position before earnings</span>'
+            '</div>'
+        )
+
+    if news:
+        parts.append(
+            '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px">Top market headlines</div>'
+        )
+        for n in news[:3]:
+            headline = (n.get("headline") or "").strip()
+            source = (n.get("source") or "").strip()
+            url = (n.get("url") or "").strip()
+            if not headline:
+                continue
+            # Age in hours
+            dt = n.get("datetime") or 0
+            age_h = max(0, int((datetime.now(timezone.utc).timestamp() - dt) / 3600))
+            age_str = f"{age_h}h ago" if age_h < 24 else f"{age_h // 24}d ago"
+            link_open = f'<a href="{url}" style="color:#1f2937;text-decoration:none" target="_blank">' if url else ""
+            link_close = "</a>" if url else ""
+            parts.append(
+                f'<div style="font-size:13px;margin:6px 0;padding:6px 8px;background:#fafafa;border-left:3px solid #d1d5db;border-radius:3px">'
+                f'{link_open}<strong>{headline}</strong>{link_close}'
+                f'<div style="font-size:11px;color:#9ca3af;margin-top:2px">{source} · {age_str}</div>'
+                f'</div>'
+            )
+
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def render_email(trend_light, trend, fear_light, fear, verdict, rates_ctx, catalysts_html) -> str:
     long_date = today_sgt_long()
 
     # Verdict block styling
@@ -246,6 +304,8 @@ def render_email(trend_light, trend, fear_light, fear, verdict, rates_ctx) -> st
     </div>
   </div>
 
+  {catalysts_html}
+
   <!-- ────────── ACTIONS ────────── -->
   <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-top:8px">
     <div style="font-size:13px;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px">🎯 Your action this week</div>
@@ -322,7 +382,16 @@ def main() -> int:
     top3 = sorted(sector_perf.items(), key=lambda kv: kv[1], reverse=True)[:3]
     rates_ctx = _rates_context(ten_y, ten_y_30d_chg, top3)
 
-    html = render_email(trend_light, trend, fear_light, fear, verdict, rates_ctx)
+    # Catalysts: top market headlines + watchlist earnings this week
+    news = fetch_yahoo_news(limit=5)
+    try:
+        tickers = load_watchlist()
+    except Exception:
+        tickers = []
+    earnings_this_week = watchlist_earnings_this_week(tickers) if tickers else []
+    catalysts_html = render_catalysts(news, earnings_this_week)
+
+    html = render_email(trend_light, trend, fear_light, fear, verdict, rates_ctx, catalysts_html)
     subject = f"[AUTO] 🌤️ Weather Check — {today_sgt_str()}"
     send_email(subject, html)
     print(f"[ok] verdict: {verdict['head']}")
