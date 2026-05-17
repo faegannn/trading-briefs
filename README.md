@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/27896980/README.md)
 # Trading Briefs on GitHub Actions
 
 Runs your daily Setup Scanner and weekly Weather Check on **GitHub's servers** — totally
@@ -10,7 +9,9 @@ fresh, formatted as HTML, and emailed directly to your Gmail.
 | Brief | Schedule (SGT) | UTC cron |
 |---|---|---|
 | 📊 Setup Scanner | Mon–Fri 8:00 PM | `0 12 * * 1-5` |
-| 🌤️ Weather Check | Mon 8:00 PM | `0 12 * * 0` |
+| 🌤️ Weather Check | Mon 8:01 PM | `1 12 * * 1` |
+
+Both fire ~90 min before US market open. On Mondays you'll get **two emails ~30 seconds apart** — read the Weather Check first to set this week's tape, then the Setup Scanner for today's candidates.
 
 GitHub schedules may be delayed up to ~15 min during peak load — that's normal and harmless
 for a pre-market brief.
@@ -67,8 +68,8 @@ trading-briefs/
    - **Name:** `GMAIL_APP_PASSWORD`
    - **Secret:** `mzal yqux vetu mwcn` (paste exactly — spaces OK, will be stripped)
    - Click **Add secret**
-
 You should now see both secrets listed (values hidden — that's expected and correct).
+News headlines + watchlist earnings are pulled from Yahoo Finance automatically (no API key needed).
 
 ### Step 4 — Enable Actions on the repo
 
