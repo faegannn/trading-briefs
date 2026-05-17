@@ -1,0 +1,9 @@
+# Trading watchlist. One ticker per line. # = comment.
+META
+GOOG
+MSFT
+BABA
+SE
+AMZN
+TSLA
+NVDA

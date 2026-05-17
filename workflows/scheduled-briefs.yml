@@ -1,0 +1,54 @@
+name: Scheduled Trading Briefs
+
+on:
+  schedule:
+    # All cron times are in UTC.
+    # 8:00 PM Singapore (UTC+8) = 12:00 UTC
+    - cron: '0 12 * * 1-5'   # Daily Setup Scanner: Mon-Fri 8pm SGT
+    - cron: '0 12 * * 0'     # Weekly Weather Check: Sun 8pm SGT
+  workflow_dispatch:          # manual "Run workflow" button in the Actions tab
+    inputs:
+      which:
+        description: 'Which brief to run manually?'
+        required: true
+        default: 'scanner'
+        type: choice
+        options:
+          - scanner
+          - weather
+          - both
+
+jobs:
+  setup-scanner:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 12 * * 1-5') ||
+        (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'scanner' || github.event.inputs.which == 'both'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Run Setup Scanner
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python setup_scanner.py
+
+  weather-check:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 12 * * 0') ||
+        (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'weather' || github.event.inputs.which == 'both'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Run Weather Check
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python weather_check.py
