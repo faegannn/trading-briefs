@@ -156,24 +156,35 @@ def render_catalysts(news: list[dict], earnings: list[tuple[str, int]]) -> str:
         )
 
     if news:
-        parts.append(
-            '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px">Top market headlines</div>'
+        # Determine if we're in "impact-news found" or "fallback latest" mode
+        has_real_impact = any(n.get("category") and n.get("category") != "📰 General" for n in news)
+        header_label = (
+            "Market-moving headlines (last 3 days)"
+            if has_real_impact
+            else "No major events flagged — showing latest general headlines"
         )
-        for n in news[:3]:
+        parts.append(
+            f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px">{header_label}</div>'
+        )
+        for n in news[:5]:
             headline = (n.get("headline") or "").strip()
             source = (n.get("source") or "").strip()
             url = (n.get("url") or "").strip()
+            category = n.get("category") or ""
             if not headline:
                 continue
-            # Age in hours
             dt = n.get("datetime") or 0
             age_h = max(0, int((datetime.now(timezone.utc).timestamp() - dt) / 3600))
             age_str = f"{age_h}h ago" if age_h < 24 else f"{age_h // 24}d ago"
             link_open = f'<a href="{url}" style="color:#1f2937;text-decoration:none" target="_blank">' if url else ""
             link_close = "</a>" if url else ""
+            cat_chip = (
+                f'<span style="display:inline-block;font-size:10px;background:#eef2ff;color:#3730a3;padding:2px 6px;border-radius:99px;margin-right:6px;font-weight:600">{category}</span>'
+                if category else ""
+            )
             parts.append(
                 f'<div style="font-size:13px;margin:6px 0;padding:6px 8px;background:#fafafa;border-left:3px solid #d1d5db;border-radius:3px">'
-                f'{link_open}<strong>{headline}</strong>{link_close}'
+                f'{cat_chip}{link_open}<strong>{headline}</strong>{link_close}'
                 f'<div style="font-size:11px;color:#9ca3af;margin-top:2px">{source} · {age_str}</div>'
                 f'</div>'
             )
