@@ -3,7 +3,7 @@ name: Scheduled Trading Briefs
 on:
   schedule:
     # Every 5 minutes (UTC)
-    - cron: '*/5 * * * *'
+    - cron: '*/1 * * * *'
 
   workflow_dispatch:
     inputs:
