@@ -3,10 +3,10 @@ name: Scheduled Trading Briefs
 on:
   schedule:
     # All cron times are in UTC.
-    # 8:00 PM Singapore (UTC+8) = 12:00 UTC = 8:00 AM ET = 90 min before US market open.
-    # Weather Check offset by 1 minute so GitHub treats it as a distinct schedule trigger on Monday.
-    - cron: '0 12 * * 1-5'   # Daily Setup Scanner: Mon-Fri 8:00 PM SGT
-    - cron: '1 12 * * 1'     # Weekly Weather Check: Mon 8:01 PM SGT (90 min before US open Monday)
+    # 8:00 PM Singapore (UTC+8) ≈ 12:00 UTC. Odd-minute offsets (7, 8) used to avoid the
+    # heavy top-of-hour load on GitHub's cron infrastructure that causes silent skips.
+    - cron: '7 12 * * 1-5'   # Daily Setup Scanner: Mon-Fri 8:07 PM SGT
+    - cron: '8 12 * * 1'     # Weekly Weather Check: Mon 8:08 PM SGT
   workflow_dispatch:          # manual "Run workflow" button in the Actions tab
     inputs:
       which:
@@ -21,7 +21,7 @@ on:
 
 jobs:
   setup-scanner:
-    if: (github.event_name == 'schedule' && github.event.schedule == '0 12 * * 1-5') ||
+    if: (github.event_name == 'schedule' && github.event.schedule == '7 12 * * 1-5') ||
         (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'scanner' || github.event.inputs.which == 'both'))
     runs-on: ubuntu-latest
     steps:
@@ -38,7 +38,7 @@ jobs:
         run: python setup_scanner.py
 
   weather-check:
-    if: (github.event_name == 'schedule' && github.event.schedule == '1 12 * * 1') ||
+    if: (github.event_name == 'schedule' && github.event.schedule == '8 12 * * 1') ||
         (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'weather' || github.event.inputs.which == 'both'))
     runs-on: ubuntu-latest
     steps:
