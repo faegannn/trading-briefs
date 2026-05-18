@@ -5,8 +5,8 @@ on:
     # All cron times are in UTC.
     # 8:00 PM Singapore (UTC+8) ≈ 12:00 UTC. Odd-minute offsets (7, 8) used to avoid the
     # heavy top-of-hour load on GitHub's cron infrastructure that causes silent skips.
-    - cron: '7 12 * * 1-5'   # Daily Setup Scanner: Mon-Fri 8:07 PM SGT
-    - cron: '8 12 * * 1'     # Weekly Weather Check: Mon 8:08 PM SGT
+    - cron: '25 12 * * 1'   # Daily Setup Scanner: Mon-Fri 8:07 PM SGT
+    - cron: '25 12 * * 1'     # Weekly Weather Check: Mon 8:08 PM SGT
   workflow_dispatch:          # manual "Run workflow" button in the Actions tab
     inputs:
       which:
@@ -21,7 +21,7 @@ on:
 
 jobs:
   setup-scanner:
-    if: (github.event_name == 'schedule' && github.event.schedule == '7 12 * * 1-5') ||
+    if: (github.event_name == 'schedule' && github.event.schedule == '25 12 * * 1') ||
         (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'scanner' || github.event.inputs.which == 'both'))
     runs-on: ubuntu-latest
     steps:
