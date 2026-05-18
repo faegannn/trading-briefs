@@ -2,16 +2,15 @@ name: Scheduled Trading Briefs
 
 on:
   schedule:
-    # 8:45 PM Singapore Time (UTC+8)
-    - cron: '45 12 * * 1-5'   # Scanner: Mon-Fri
-    - cron: '45 12 * * 1'     # Weather: Monday only
+    # Every 5 minutes (UTC)
+    - cron: '*/5 * * * *'
 
   workflow_dispatch:
     inputs:
       which:
         description: 'Which brief to run manually?'
         required: true
-        default: 'scanner'
+        default: 'both'
         type: choice
         options:
           - scanner
@@ -20,11 +19,10 @@ on:
 
 jobs:
   setup-scanner:
-    if: (github.event_name == 'schedule' &&
-         github.event.schedule == '45 12 * * 1-5') ||
-        (github.event_name == 'workflow_dispatch' &&
-         (github.event.inputs.which == 'scanner' ||
-          github.event.inputs.which == 'both'))
+    if: github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' &&
+        (github.event.inputs.which == 'scanner' ||
+         github.event.inputs.which == 'both')
 
     runs-on: ubuntu-latest
 
@@ -37,6 +35,14 @@ jobs:
           cache: 'pip'
 
       - run: pip install -r requirements.txt
+
+      - name: Debug Info
+        run: |
+          echo "==== DEBUG SCANNER JOB ===="
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          date
+          python --version
 
       - name: Run Setup Scanner
         env:
@@ -44,12 +50,12 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python setup_scanner.py
 
+
   weather-check:
-    if: (github.event_name == 'schedule' &&
-         github.event.schedule == '45 12 * * 1') ||
-        (github.event_name == 'workflow_dispatch' &&
-         (github.event.inputs.which == 'weather' ||
-          github.event.inputs.which == 'both'))
+    if: github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' &&
+        (github.event.inputs.which == 'weather' ||
+         github.event.inputs.which == 'both')
 
     runs-on: ubuntu-latest
 
@@ -62,6 +68,14 @@ jobs:
           cache: 'pip'
 
       - run: pip install -r requirements.txt
+
+      - name: Debug Info
+        run: |
+          echo "==== DEBUG WEATHER JOB ===="
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          date
+          python --version
 
       - name: Run Weather Check
         env:
