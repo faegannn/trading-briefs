@@ -2,12 +2,10 @@ name: Scheduled Trading Briefs
 
 on:
   schedule:
-    # All cron times are in UTC.
-    # 8:00 PM Singapore (UTC+8) ≈ 12:00 UTC. Odd-minute offsets (7, 8) used to avoid the
-    # heavy top-of-hour load on GitHub's cron infrastructure that causes silent skips.
-    - cron: '30 12 * * 1-5'   # Daily Setup Scanner: Mon-Fri 8:07 PM SGT
-    - cron: '25 12 * * 1'     # Weekly Weather Check: Mon 8:08 PM SGT
-  workflow_dispatch:          # manual "Run workflow" button in the Actions tab
+    # 8:45 PM Singapore Time (UTC+8) = 12:45 UTC
+    - cron: '45 12 * * 1-5'   # Mon-Fri
+
+  workflow_dispatch:
     inputs:
       which:
         description: 'Which brief to run manually?'
@@ -21,16 +19,24 @@ on:
 
 jobs:
   setup-scanner:
-    if: (github.event_name == 'schedule' && github.event.schedule == '25 12 * * 1') ||
-        (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'scanner' || github.event.inputs.which == 'both'))
+    if: (github.event_name == 'schedule' &&
+         github.event.schedule == '45 12 * * 1-5') ||
+        (github.event_name == 'workflow_dispatch' &&
+         (github.event.inputs.which == 'scanner' ||
+          github.event.inputs.which == 'both'))
+
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - run: pip install -r requirements.txt
+
       - name: Run Setup Scanner
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -38,16 +44,24 @@ jobs:
         run: python setup_scanner.py
 
   weather-check:
-    if: (github.event_name == 'schedule' && github.event.schedule == '8 12 * * 1') ||
-        (github.event_name == 'workflow_dispatch' && (github.event.inputs.which == 'weather' || github.event.inputs.which == 'both'))
+    if: (github.event_name == 'schedule' &&
+         github.event.schedule == '45 12 * * 1-5') ||
+        (github.event_name == 'workflow_dispatch' &&
+         (github.event.inputs.which == 'weather' ||
+          github.event.inputs.which == 'both'))
+
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - run: pip install -r requirements.txt
+
       - name: Run Weather Check
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
