@@ -66,7 +66,7 @@ trading-briefs/
    - Click **Add secret**
 5. Click **New repository secret** again, add a second:
    - **Name:** `GMAIL_APP_PASSWORD`
-   - **Secret:** `mzal yqux vetu mwcn` (paste exactly — spaces OK, will be stripped)
+   - **Secret:** `SECRET KEY` (paste exactly — spaces OK, will be stripped)
    - Click **Add secret**
 You should now see both secrets listed (values hidden — that's expected and correct).
 News headlines + watchlist earnings are pulled from Yahoo Finance automatically (no API key needed).
