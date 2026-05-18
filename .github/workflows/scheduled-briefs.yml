@@ -2,8 +2,9 @@ name: Scheduled Trading Briefs
 
 on:
   schedule:
-    # 8:45 PM Singapore Time (UTC+8) = 12:45 UTC
-    - cron: '45 12 * * 1-5'   # Mon-Fri
+    # 8:45 PM Singapore Time (UTC+8)
+    - cron: '45 12 * * 1-5'   # Scanner: Mon-Fri
+    - cron: '45 12 * * 1'     # Weather: Monday only
 
   workflow_dispatch:
     inputs:
@@ -45,7 +46,7 @@ jobs:
 
   weather-check:
     if: (github.event_name == 'schedule' &&
-         github.event.schedule == '45 12 * * 1-5') ||
+         github.event.schedule == '45 12 * * 1') ||
         (github.event_name == 'workflow_dispatch' &&
          (github.event.inputs.which == 'weather' ||
           github.event.inputs.which == 'both'))
