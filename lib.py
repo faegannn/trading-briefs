@@ -152,26 +152,53 @@ def fetch_ticker(ticker: str) -> dict | None:
         support_strength = sup["strength"] if sup else "weak"
         resistance_strength = res["strength"] if res else "weak"
 
-        # Next earnings
+        # Next earnings — only count UPCOMING dates (filter out past).
         next_earnings_days: int | None = None
+        today = datetime.now(timezone.utc).date()
         try:
             cal = t.calendar
+            candidates: list = []
             if isinstance(cal, dict):
                 ed = cal.get("Earnings Date")
-                if isinstance(ed, list) and ed:
-                    earn = ed[0]
-                    if hasattr(earn, "date"):
-                        earn = earn.date()
-                    next_earnings_days = (earn - datetime.now(timezone.utc).date()).days
-            elif hasattr(cal, "iloc") and "Earnings Date" in cal.index:
+                if isinstance(ed, list):
+                    candidates = list(ed)
+                elif ed is not None:
+                    candidates = [ed]
+            elif hasattr(cal, "loc") and hasattr(cal, "index") and "Earnings Date" in cal.index:
                 ed = cal.loc["Earnings Date"]
-                if hasattr(ed, "iloc"):
-                    ed = ed.iloc[0]
-                if hasattr(ed, "date"):
-                    ed = ed.date()
-                next_earnings_days = (ed - datetime.now(timezone.utc).date()).days
+                if hasattr(ed, "tolist"):
+                    try:
+                        candidates = list(ed.tolist())
+                    except Exception:
+                        candidates = [ed]
+                else:
+                    candidates = [ed]
+            upcoming: list = []
+            for d in candidates:
+                try:
+                    if hasattr(d, "date"):
+                        d = d.date()
+                    if d >= today:
+                        upcoming.append(d)
+                except Exception:
+                    continue
+            upcoming.sort()
+            if upcoming:
+                next_earnings_days = (upcoming[0] - today).days
         except Exception:
             pass
+
+        # Fallback to yfinance .info for the next earnings timestamp
+        if next_earnings_days is None:
+            try:
+                info = t.info or {}
+                ts = info.get("earningsTimestamp") or info.get("earningsTimestampStart")
+                if ts:
+                    ed = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+                    if ed >= today:
+                        next_earnings_days = (ed - today).days
+            except Exception:
+                pass
 
         return {
             "ticker": ticker,
