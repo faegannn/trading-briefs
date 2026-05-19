@@ -71,6 +71,20 @@ def neutral_cell(text: str) -> str:
     return f'<td style="text-align:right;padding:6px 8px;border:1px solid #ddd">{text}</td>'
 
 
+def premarket_cell(close: float, pm: float | None) -> str:
+    """Pre-market price cell — colored if different from close, em-dash if missing/unchanged."""
+    if pm is None or close <= 0 or abs(pm - close) / close < 0.001:
+        return '<td style="text-align:right;padding:6px 8px;border:1px solid #ddd;color:#9ca3af">—</td>'
+    chg_pct = (pm - close) / close * 100
+    color = "#10b981" if pm > close else "#ef4444"
+    arrow = "▲" if pm > close else "▼"
+    return (
+        f'<td style="text-align:right;padding:6px 8px;border:1px solid #ddd;color:{color};font-weight:600">'
+        f'${pm:.2f} <span style="font-size:10px;font-weight:400">{arrow}{abs(chg_pct):.1f}%</span>'
+        f'</td>'
+    )
+
+
 def render_email(scored: list[dict], eligible: list[dict]) -> str:
     long_date = today_sgt_long()
     winner = eligible[0] if eligible else None
@@ -164,6 +178,7 @@ def render_email(scored: list[dict], eligible: list[dict]) -> str:
           <td style="padding:6px 8px;border:1px solid #ddd;font-weight:700">{d['ticker']}</td>
           <td style="text-align:center;padding:6px 8px;border:1px solid #ddd;color:{score_color};font-weight:600">{r['score']}/5 {score_label}</td>
           {neutral_cell(f"${d['current_price']:.2f}")}
+          {premarket_cell(d['current_price'], d.get('premarket_price'))}
           {cell(d['rsi'] < 40, f"{d['rsi']:.0f}")}
           {neutral_cell(f"${d['support_major']:.2f}")}
           {cell(abs(d['distance_to_support_pct']) <= 2.5, fmt(d['distance_to_support_pct'], 1, pct=True, plus=True))}
@@ -188,7 +203,8 @@ def render_email(scored: list[dict], eligible: list[dict]) -> str:
         <th style="text-align:center;padding:6px 8px;border:1px solid #ddd">Rank</th>
         <th style="text-align:left;padding:6px 8px;border:1px solid #ddd">Ticker</th>
         <th style="text-align:center;padding:6px 8px;border:1px solid #ddd">Score</th>
-        <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Price</th>
+        <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Close</th>
+        <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Pre-Mkt</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">RSI</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Support</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">To Support</th>
@@ -207,7 +223,8 @@ def render_email(scored: list[dict], eligible: list[dict]) -> str:
   <hr style="margin:24px 0 12px;border:none;border-top:1px solid #ddd">
   <div style="font-size:11px;color:#6b7280;line-height:1.7">
     <strong style="color:#374151">Column legend</strong><br>
-    <strong>Price</strong> — current market price<br>
+    <strong>Close</strong> — yesterday's regular-session close (4 PM ET)<br>
+    <strong>Pre-Mkt</strong> — pre-market price (4–9:30 AM ET). Green ▲ = trading up vs close, red ▼ = down, — = no pre-market activity or data unavailable<br>
     <strong>Support</strong> — major support level (60-day, multi-touch), your entry target<br>
     <strong>To Support</strong> — distance from price to support. +1.4% = trading 1.4% above support (good). Negative = price has dropped below support (broken).<br>
     <strong>Range</strong> — gap from support to resistance. Bigger = more profit potential.<br>
