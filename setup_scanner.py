@@ -20,11 +20,9 @@ def score(data: dict) -> tuple[int, list[tuple[str, bool]]]:
     return s, checks
 
 
-def pick_winner(scored: list[dict]) -> dict | None:
+def pick_eligible(scored: list[dict]) -> list[dict]:
+    """All 4/5+ tickers sorted best→worst. First entry is the auto-pick."""
     eligible = [r for r in scored if r["score"] >= 4]
-    if not eligible:
-        return None
-    # tie-break: closest to support, then lowest RSI, then widest range
     eligible.sort(
         key=lambda r: (
             -r["score"],
@@ -33,7 +31,7 @@ def pick_winner(scored: list[dict]) -> dict | None:
             -r["data"]["range_pct"],
         )
     )
-    return eligible[0]
+    return eligible
 
 
 def trade_plan(d: dict) -> dict:
@@ -73,31 +71,49 @@ def neutral_cell(text: str) -> str:
     return f'<td style="text-align:right;padding:6px 8px;border:1px solid #ddd">{text}</td>'
 
 
-def render_email(scored: list[dict], winner: dict | None) -> str:
+def render_email(scored: list[dict], eligible: list[dict]) -> str:
     long_date = today_sgt_long()
+    winner = eligible[0] if eligible else None
 
     # Hero
     if winner:
         w = winner
         d = w["data"]
         plan = w["plan"]
+        # Multi-candidate sub-note if there are more than one 4/5+ setups
+        if len(eligible) > 1:
+            others = " · ".join(
+                f"<strong>{e['data']['ticker']}</strong> ({e['score']}/5)"
+                for e in eligible[1:]
+            )
+            multi_note = (
+                f'<div style="font-size:12px;color:#047857;margin-top:8px;padding-top:8px;border-top:1px solid #a7f3d0">'
+                f'<strong>Also eligible this week:</strong> {others}. '
+                f'Pick whichever you prefer — same V1 rules apply. Auto-pick is the closest to support.'
+                f"</div>"
+            )
+        else:
+            multi_note = ""
+
         hero = f"""
         <div style="background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);padding:16px 20px;border-left:4px solid #10b981;margin-bottom:24px;border-radius:6px">
-          <div style="font-size:11px;color:#047857;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600">🎯 This week's best setup</div>
+          <div style="font-size:11px;color:#047857;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600">🎯 Auto-pick: tightest setup</div>
           <div style="font-size:22px;font-weight:700;color:#064e3b">{d['ticker']} · {w['score']}/5 ✅</div>
           <div style="font-size:13px;color:#065f46;margin-top:4px">
             At support ${d['support_major']:.2f} ({fmt(d['distance_to_support_pct'], 1, pct=True, plus=True)}) · RSI {d['rsi']:.0f} · range {d['range_pct']:.1f}% · earnings in {'∞' if d['next_earnings_days'] is None else f"{d['next_earnings_days']}d"}
           </div>
+          {multi_note}
         </div>
         """
         decision = f"""
-        <h2 style="font-size:14px;margin:20px 0 8px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px">Decision</h2>
+        <h2 style="font-size:14px;margin:20px 0 8px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px">Decision (auto-pick)</h2>
         <p style="font-size:13px;margin:0">
           <strong>{d['ticker']}</strong> is your {w['score']}/5 setup. Limit order: <strong>${plan['entry_1_price']:.2f}</strong>
           ({plan['entry_1_qty']} shares ≈ $1,000). DCA-2 trigger: ${plan['entry_2_trigger']:.2f} (–5%). DCA-3 trigger:
           ${plan['entry_3_trigger']:.2f} (–10%). Target: <strong>${plan['target_price']:.2f}</strong>
           (+{plan['target_pct']:.1f}%). Cancel if not filled by Wednesday.
         </p>
+        {('<p style="font-size:12px;color:#6b7280;margin-top:6px">If you choose a different eligible name instead, the same DCA math applies: 50% at support, 30% if it drops 5%, 20% if it drops 10%; target +3% or resistance.</p>') if len(eligible) > 1 else ''}
         """
     else:
         highest = max(scored, key=lambda r: r["score"]) if scored else None
@@ -120,21 +136,34 @@ def render_email(scored: list[dict], winner: dict | None) -> str:
             r["data"]["rsi"],
         ),
     )
+    eligible_tickers = {e["data"]["ticker"] for e in eligible}
     rows_html = []
     for rank, r in enumerate(scored_sorted, start=1):
         d = r["data"]
         is_winner = winner is not None and d["ticker"] == winner["data"]["ticker"]
-        bg = "background:#ecfdf5;font-weight:600" if is_winner else ""
+        is_eligible = d["ticker"] in eligible_tickers and not is_winner
+        if is_winner:
+            bg = "background:#ecfdf5;font-weight:600"
+        elif is_eligible:
+            bg = "background:#f0fdf4"
+        else:
+            bg = ""
         score_color = "#10b981" if r["score"] >= 4 else ("#f59e0b" if r["score"] == 3 else "#ef4444")
         score_label = "✅" if r["score"] >= 4 else ("⚠️" if r["score"] == 3 else "❌")
         earn_days = d["next_earnings_days"]
-        earn_str = "—" if earn_days is None else f"{earn_days}d"
-        earn_ok = earn_days is None or earn_days > 14
+        # Show "—" if unknown OR if the stored value is in the past (defensive).
+        if earn_days is None or earn_days < 0:
+            earn_str = "—"
+            earn_ok = True  # unknown earnings ≠ disqualification
+        else:
+            earn_str = f"{earn_days}d"
+            earn_ok = earn_days > 14
         rows_html.append(f"""
         <tr style="{bg}">
           <td style="text-align:center;padding:6px 8px;border:1px solid #ddd">{rank}</td>
           <td style="padding:6px 8px;border:1px solid #ddd;font-weight:700">{d['ticker']}</td>
           <td style="text-align:center;padding:6px 8px;border:1px solid #ddd;color:{score_color};font-weight:600">{r['score']}/5 {score_label}</td>
+          {neutral_cell(f"${d['current_price']:.2f}")}
           {cell(d['rsi'] < 40, f"{d['rsi']:.0f}")}
           {neutral_cell(f"${d['support_major']:.2f}")}
           {cell(abs(d['distance_to_support_pct']) <= 2.5, fmt(d['distance_to_support_pct'], 1, pct=True, plus=True))}
@@ -159,6 +188,7 @@ def render_email(scored: list[dict], winner: dict | None) -> str:
         <th style="text-align:center;padding:6px 8px;border:1px solid #ddd">Rank</th>
         <th style="text-align:left;padding:6px 8px;border:1px solid #ddd">Ticker</th>
         <th style="text-align:center;padding:6px 8px;border:1px solid #ddd">Score</th>
+        <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Price</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">RSI</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">Support</th>
         <th style="text-align:right;padding:6px 8px;border:1px solid #ddd">To Support</th>
@@ -175,10 +205,19 @@ def render_email(scored: list[dict], winner: dict | None) -> str:
   {decision}
 
   <hr style="margin:24px 0 12px;border:none;border-top:1px solid #ddd">
-  <p style="font-size:11px;color:#888">
-    5-point checklist: RSI &lt; 40 · within 2.5% of support · EMA 20 &gt; EMA 50 · range ≥ 2.5% · no earnings in 14 days. Need 4/5 to trade. 1 trade per week max.<br>
-    Data source: Yahoo Finance (yfinance). Computed by GitHub Actions. Not financial advice.
-  </p>
+  <div style="font-size:11px;color:#6b7280;line-height:1.7">
+    <strong style="color:#374151">Column legend</strong><br>
+    <strong>Price</strong> — current market price<br>
+    <strong>Support</strong> — major support level (60-day, multi-touch), your entry target<br>
+    <strong>To Support</strong> — distance from price to support. +1.4% = trading 1.4% above support (good). Negative = price has dropped below support (broken).<br>
+    <strong>Range</strong> — gap from support to resistance. Bigger = more profit potential.<br>
+    <strong>Earnings</strong> — days until next upcoming earnings. "—" means no earnings reported within Yahoo's data window.<br>
+    <br>
+    <strong style="color:#374151">5-point checklist (need 4/5 to trade)</strong><br>
+    RSI &lt; 40 · within 2.5% of support · EMA 20 &gt; EMA 50 · range ≥ 2.5% · no earnings in 14 days<br>
+    <br>
+    Data: Yahoo Finance (yfinance) via GitHub Actions. 1 trade per week max. Not financial advice.
+  </div>
 </div>"""
 
 
@@ -200,11 +239,11 @@ def main() -> int:
         print("[error] no ticker data — aborting send")
         return 1
 
-    winner = pick_winner(scored)
-    if winner:
-        winner["plan"] = trade_plan(winner["data"])
+    eligible = pick_eligible(scored)
+    for e in eligible:
+        e["plan"] = trade_plan(e["data"])
 
-    html = render_email(scored, winner)
+    html = render_email(scored, eligible)
     subject = f"[AUTO] 📊 Setup Scanner — {today_sgt_str()}"
     send_email(subject, html)
     return 0
