@@ -1,16 +1,12 @@
 name: Scheduled Trading Briefs
 
 on:
-  schedule:
-    # Every 5 minutes (UTC)
-    - cron: '*/1 * * * *'
-
   workflow_dispatch:
     inputs:
       which:
-        description: 'Which brief to run manually?'
+        description: 'Which brief to run?'
         required: true
-        default: 'both'
+        default: 'scanner'
         type: choice
         options:
           - scanner
@@ -19,64 +15,31 @@ on:
 
 jobs:
   setup-scanner:
-    if: github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch' &&
-        (github.event.inputs.which == 'scanner' ||
-         github.event.inputs.which == 'both')
-
+    if: github.event.inputs.which == 'scanner' || github.event.inputs.which == 'both'
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
       - run: pip install -r requirements.txt
-
-      - name: Debug Info
-        run: |
-          echo "==== DEBUG SCANNER JOB ===="
-          echo "Event: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          date
-          python --version
-
       - name: Run Setup Scanner
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python setup_scanner.py
 
-
   weather-check:
-    if: github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch' &&
-        (github.event.inputs.which == 'weather' ||
-         github.event.inputs.which == 'both')
-
+    if: github.event.inputs.which == 'weather' || github.event.inputs.which == 'both'
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
       - run: pip install -r requirements.txt
-
-      - name: Debug Info
-        run: |
-          echo "==== DEBUG WEATHER JOB ===="
-          echo "Event: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          date
-          python --version
-
       - name: Run Weather Check
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
