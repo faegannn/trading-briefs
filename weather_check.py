@@ -25,7 +25,7 @@ from lib import (
 # ─── Data fetch ─────────────────────────────────────────────────────────────
 def closes_of(ticker: str, period: str = "1y") -> list[float] | None:
     try:
-        h = yf.Ticker(ticker).history(period=period, interval="1d", auto_adjust=False)
+        h = yf.Ticker(ticker).history(period=period, interval="1d")
         if h.empty:
             return None
         return h["Close"].tolist()
