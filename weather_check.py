@@ -357,7 +357,7 @@ def _rates_context(ten_y: float, ten_y_30d_chg: float, top_sectors: list[tuple[s
     top_str = ", ".join(f"{s} {p:+.1f}%" for s, p in top_sectors)
     return (
         f"10-year Treasury yield at {ten_y:.2f}% ({direction}, {ten_y_30d_chg:+.2f}pp over 30 days). "
-        f"Sector leaders: {top_str}. These matter more for long-term investors than 1–2 week swing trades."
+        f"Sector leaders: {top_str}.f These matter more for long-term investors than 1–2 week swing trades."
     )
 
 
@@ -370,10 +370,13 @@ def main() -> int:
     if spy is None or len(spy) < 200:
         print("[error] SPY data unavailable")
         return 1
-    vix = closes_of("^VIX", "3mo")
-    if vix is None or len(vix) < 20:
-        print("[error] VIX data unavailable")
-        return 1
+vix = closes_of("^VIX", "6mo")
+if vix is None or len(vix) < 20:
+    # fallback: try 1y
+    vix = closes_of("^VIX", "1y")
+if vix is None or len(vix) < 20:
+    print("[error] VIX data unavailable")
+    return 1
 
     trend_light, trend = trend_signal(spy)
     fear_light, fear = fear_signal(vix)
