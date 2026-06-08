@@ -33,7 +33,6 @@ def closes_of(ticker: str, period: str = "1y") -> list[float] | None:
         print(f"[warn] {ticker}: {e}")
         return None
 
-
 def sma(closes: list[float], window: int) -> float:
     return sum(closes[-window:]) / window
 
