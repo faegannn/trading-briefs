@@ -370,13 +370,12 @@ def main() -> int:
     if spy is None or len(spy) < 200:
         print("[error] SPY data unavailable")
         return 1
-vix = closes_of("^VIX", "6mo")
-if vix is None or len(vix) < 20:
-    # fallback: try 1y
-    vix = closes_of("^VIX", "1y")
-if vix is None or len(vix) < 20:
-    print("[error] VIX data unavailable")
-    return 1
+    vix = closes_of("^VIX", "6mo")
+    if vix is None or len(vix) < 20:
+        vix = closes_of("^VIX", "1y")
+    if vix is None or len(vix) < 20:
+        print("[error] VIX data unavailable")
+        return 1
 
     trend_light, trend = trend_signal(spy)
     fear_light, fear = fear_signal(vix)
